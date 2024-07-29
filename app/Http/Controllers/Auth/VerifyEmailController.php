@@ -3,26 +3,61 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Providers\RouteServiceProvider;
+use Illuminate\Auth\Access\AuthorizationException;
+use App\Mail\VerifyEmail;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+use App\Models\User; // Ensure you import the User model
 
 class VerifyEmailController extends Controller
 {
-    /**
-     * Mark the authenticated user's email address as verified.
-     */
-    public function __invoke(EmailVerificationRequest $request): RedirectResponse
+    public function __invoke(Request $request, $id, $hash)
     {
-        if ($request->user()->hasVerifiedEmail()) {
-            return redirect()->intended(RouteServiceProvider::HOME.'?verified=1');
+        $user = User::findOrFail($id);
+
+        // Assuming you have a method to validate the hash
+        if (! Hash::check($hash, $user->getEmailVerificationToken())) {
+            throw new ValidationException('Invalid verification link.');
         }
 
-        if ($request->user()->markEmailAsVerified()) {
-            event(new Verified($request->user()));
+        if ($user->hasVerifiedEmail()) {
+            return Redirect::route('home')->with('status', 'Your email address is already verified.');
         }
 
-        return redirect()->intended(RouteServiceProvider::HOME.'?verified=1');
+        if ($user->markEmailAsVerified()) {
+            event(new Verified($user));
+        }
+
+        return Redirect::route('home')->with('status', 'Your email address has been verified.');
+    }
+
+    /**
+     * Resend the email verification link.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function resendVerificationEmail(Request $request)
+    {
+        // Validate the request
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        // Retrieve the user by email
+        $user = User::where('email', $request->input('email'))->firstOrFail();
+
+        // Generate a new email verification token
+        $token = $user->generateEmailVerificationToken();
+
+        // Send the email verification link
+        Mail::to($user->email)->send(new VerifyEmail($user, $token));
+
+        // Redirect back with a success message
+        return Redirect::back()->with('status', 'Verification link sent!');
     }
 }

@@ -2,59 +2,104 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\ProfileUpdateRequest;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Redirect;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+use App\Exceptions\UnauthorizedException;
 
 class ProfileController extends Controller
 {
     /**
-     * Display the user's profile form.
+     * Display the user's profile.
+     *
+     * @return \Illuminate\Http\Response
      */
-    public function edit(Request $request): View
+    public function show()
     {
-        return view('profile.edit', [
-            'user' => $request->user(),
-        ]);
-    }
+        $user = Auth::user();
 
-    /**
-     * Update the user's profile information.
-     */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
-    {
-        $request->user()->fill($request->validated());
-
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        // Ensure $user is an instance of User
+        if (!$user instanceof User) {
+            throw new UnauthorizedException('You must be logged in to view your profile.');
         }
 
-        $request->user()->save();
-
-        return Redirect::route('profile.edit')->with('status', 'profile-updated');
+        return view('profile.show', ['user' => $user]);
     }
 
     /**
-     * Delete the user's account.
+     * Show the form for editing the user's profile.
+     *
+     * @return \Illuminate\Http\Response
      */
-    public function destroy(Request $request): RedirectResponse
+    public function edit()
     {
-        $request->validateWithBag('userDeletion', [
-            'password' => ['required', 'current_password'],
+        $user = Auth::user();
+
+        // Ensure $user is an instance of User
+        if (!$user instanceof User) {
+            throw new UnauthorizedException('You must be logged in to edit your profile.');
+        }
+
+        return view('profile.edit');
+    }
+
+    /**
+     * Update the user's profile in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request)
+    {
+        $user = Auth::user();
+
+        // Ensure $user is an instance of User
+        if (!$user instanceof User) {
+            throw new UnauthorizedException('You must be logged in to update your profile.');
+        }
+
+        // Validate the request
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'nullable|string|min:8|confirmed',
         ]);
 
-        $user = $request->user();
+        // Update user attributes
+        $user->name = $validated['name'];
+        $user->email = $validated['email'];
 
-        Auth::logout();
+        if (!empty($validated['password'])) {
+            $user->password = Hash::make($validated['password']);
+        }
 
+        $user->save();
+
+        return redirect()->route('profile.edit')->with('success', 'Profile updated successfully.');
+    }
+
+    /**
+     * Remove the user's profile from storage.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy()
+    {
+        $user = Auth::user();
+
+        // Ensure $user is an instance of User
+        if (!$user instanceof User) {
+            throw new UnauthorizedException('You must be logged in to delete your profile.');
+        }
+
+        // Delete the user's profile
         $user->delete();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        // Log the user out after deletion
+        Auth::logout();
 
-        return Redirect::to('/');
+        return redirect('/')->with('success', 'Profile deleted successfully.');
     }
 }
+
