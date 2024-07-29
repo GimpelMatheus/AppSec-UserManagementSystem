@@ -1,6 +1,4 @@
-Certainly! Here’s a comprehensive README file for your Laravel user management system project. This README covers installation, configuration, usage, testing, and more.
 
----
 
 # User Management System
 
@@ -177,11 +175,3 @@ This Laravel application provides a user management system with functionality fo
   - **Feature/Auth/**: Test cases for authentication and profile management.
 - **resources/views/**: Blade templates for views.
 - **database/**: Contains migration files and seeders.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
-Feel free to modify the paths, URLs, and other specific details according to your project's actual structure and requirements.
